@@ -202,7 +202,6 @@ fun WritableImage.set(originalImage : Image) {
 	val errorDiffusion = ErrorDiffusionMap(this.sizeX, this.sizeY)
 	val center = this.size/2.0
 
-	palette.forEach(::println)
 	val brightness = 0.2
 
 	val vignettingFilter = VignettingFilter(center, center.lengthSquared*0.75, 0.5, 0.1)
@@ -214,10 +213,10 @@ fun WritableImage.set(originalImage : Image) {
 			//color = color.deriveColor(0.0, 1.0, 1.0, 1.0)
 			//color = color.invert()
 
-			//color = color + brightness
+			color = color + brightness
 
 			// vignettierung
-			//color = color - vignettingFilter[x, y]
+			color = color - vignettingFilter[x, y]
 
 			// TODO adjustContrast
 			// TODO scale down

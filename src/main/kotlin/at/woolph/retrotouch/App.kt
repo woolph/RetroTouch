@@ -35,7 +35,7 @@ class MyView : View() {
 	val brightness = SimpleIntegerProperty()
 	val contrast = SimpleIntegerProperty()
 
-	val originalImage = Image("file:/E:/test.jpg", 800.0, 800.0, true, true)
+	val originalImage = Image("file:/E:/test2.jpg", 800.0, 800.0, true, true)
 	val modifiedImage = WritableImage(originalImage.width.toInt(), originalImage.height.toInt())
 
 	val displayType = DisplayMode.FULL_HORIZONTAL
