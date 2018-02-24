@@ -206,7 +206,7 @@ data class VignettingFilter(val center : Point, val length : Double, val strengt
 	operator fun get(x : Int, y : Int) : Double {
 		val pos = Point(x.toDouble(), y.toDouble())
 		val factor = (pos-center).lengthSquared/length
-		return if (factor<1.0) exp((factor*rollOff)-1)*rollOffFactor else strength
+		return if(factor<1.0) (exp(factor*rollOff)-1)*rollOffFactor else strength
 	}
 }
 
@@ -231,8 +231,8 @@ data class VignettingFilterEllipse(val center : Point, val size : Point, val str
 
 	operator fun get(x : Int, y : Int) : Double {
 		val pos = Point(x.toDouble(), y.toDouble())
-		var factor = (((pos-focalPoint1).length+(pos-focalPoint2).length-d)/cd).squared()
-		return if (factor<1.0) exp((factor*rollOff)-1)*rollOffFactor else strength
+		val factor = (((pos-focalPoint1).length+(pos-focalPoint2).length-d)/cd).squared()
+		return if(factor<1.0) (exp(factor*rollOff)-1)*rollOffFactor else strength
 	}
 }
 
@@ -246,17 +246,17 @@ fun WritableImage.set(originalImage : Image) {
 
 	val brightness = 0.2
 
-	//val vignettingFilter = VignettingFilter(center, center.lengthSquared*0.9, 0.5, 0.1)
-	val vignettingFilter = VignettingFilterEllipse(center, this.size*0.5, 0.2, 0.1)
+	//val vignettingFilter = VignettingFilter(center, center.lengthSquared*0.5, 0.5, 0.1)
+	val vignettingFilter = VignettingFilterEllipse(center, this.size*0.9, 0.3, 0.5)
 	
 	for(x in this.rangeX) {
 		for(y in this.rangeY) {
 			val pos = Point(x.toDouble(), y.toDouble())
 			var color = originalImage[x, y]
-			color = Color.WHITE.toMyColor()
+			
 			//color = color.invert()
 
-			//color = color + brightness
+			color = color + brightness
 
 			color = color.adjustContrast(0.25)
 			
@@ -278,7 +278,7 @@ fun WritableImage.set(originalImage : Image) {
 			// Floyd-Steinberg-Dithering
 			errorDiffusion.applyErrorDiffusionKernel(x, y, quantisationError*0.8, ErrorDiffusionKernel.MINIMIZED_AVERAGE_ERROR)
 
-			//color = quantisedColor
+			color = quantisedColor
 			
 			this[x, y] = color
 		}
