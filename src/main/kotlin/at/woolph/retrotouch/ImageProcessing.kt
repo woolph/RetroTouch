@@ -8,6 +8,8 @@ import javafx.scene.image.Image
 import javafx.scene.image.WritableImage
 import javafx.scene.paint.Color
 
+import kotlin.math.*
+
 fun Double.clip(min : Double, max : Double) = if (this<min) min else (if (this>max) max else this)
 
 fun Double.clipToUni() = this.clip(0.0, 1.0)
@@ -34,8 +36,14 @@ data class MyColor(val red : Double = 0.0, val green : Double = 0.0, val blue : 
 	fun adjustBrightness(offset : Double = 0.0, factor : Double = 1.0)
 		= MyColor((red+offset)*factor, (green+offset)*factor, (blue+offset)*factor, opacity)
 
-	fun adjustContrast(offset : Double = 0.0, factor : Double = 1.0) : MyColor {
-		return MyColor() // TODO
+	fun adjustContrast(contrast : Double = 0.0) : MyColor {
+		var factor = (1 + contrast * ContrastFactorA) / (1 - contrast * ContrastFactorB)
+		
+		var red = (factor*(this.red - 0.5) + 0.5)
+		var green = (factor*(this.green - 0.5) + 0.5)
+		var blue = (factor*(this.blue - 0.5) + 0.5)
+		
+		return MyColor(red, green, blue, opacity)
 	}
 
 	fun getQuantisedColor(palette : Iterable<MyColor>) : Pair<MyColor, MyColor> {
@@ -57,9 +65,16 @@ data class MyColor(val red : Double = 0.0, val green : Double = 0.0, val blue : 
 			val randomizer = ThreadLocalRandom.current()
 			return MyColor(factor*(2.0*randomizer.nextDouble()-1.0), factor*(2.0*randomizer.nextDouble()-1.0), factor*(2.0*randomizer.nextDouble()-1.0), 1.0)
 		}
+		
+		val ColorChannelDepth = 8.0
+		val SmallestColorDifference = 2.0.pow(-ColorChannelDepth)
+		val ContrastFactorMax = 0.5/SmallestColorDifference
+		val ContrastMax = 1.0
+		val ContrastFactorA = 1.0/ContrastMax
+		val ContrastFactorB = 1.0/(ContrastMax/(1-1/ContrastFactorMax*(1+ContrastMax/ContrastFactorA)))
 	}
 }
-
+		
 fun Color.toMyColor() = MyColor(this.red, this.green, this.blue, this.opacity)
 
 fun intermediateColors(c1 : Color, c2 : Color, steps : Int) : Collection<Color> {
@@ -175,7 +190,7 @@ data class Point(val x : Double, val y : Double) {
 	val lengthSquared : Double
 		get() = x*x + y*y
 	val length : Double
-		get() = kotlin.math.sqrt(lengthSquared)
+		get() = sqrt(lengthSquared)
 
 	operator fun plus(p : Point) = Point(x+p.x, y+p.y)
 	operator fun minus(p : Point) = Point(x-p.x, y-p.y)
@@ -186,37 +201,68 @@ data class Point(val x : Double, val y : Double) {
 }
 
 data class VignettingFilter(val center : Point, val length : Double, val strength : Double, val rollOff : Double) {
-	val rollOffFactor = strength/(kotlin.math.exp(rollOff)-1)
+	val rollOffFactor = strength/(exp(rollOff)-1)
 
 	operator fun get(x : Int, y : Int) : Double {
 		val pos = Point(x.toDouble(), y.toDouble())
-		return (kotlin.math.exp((pos-center).lengthSquared/length*rollOff)-1)*rollOffFactor
+		val factor = (pos-center).lengthSquared/length
+		return if (factor<1.0) exp((factor*rollOff)-1)*rollOffFactor else strength
+	}
+}
+
+fun Double.squared() = this*this
+
+data class VignettingFilterEllipse(val center : Point, val size : Point, val strength : Double, val rollOff : Double) {
+	val rollOffFactor = strength/(exp(rollOff)-1)
+	val cd : Double
+	val d : Double
+	val focalPoint1 : Point
+	val focalPoint2 : Point
+
+	init {
+		var lanscape = size.x>size.y
+		val c = if (lanscape) size.x else size.y
+		d = if (lanscape) sqrt(size.x*size.x - size.y*size.y) else sqrt(size.y*size.y - size.x*size.x)
+		var p = if (lanscape) Point(d*0.5, 0.0) else Point(0.0, d*0.5)
+		cd = c-d
+		focalPoint1 = center + p
+		focalPoint2 = center - p
+	}
+
+	operator fun get(x : Int, y : Int) : Double {
+		val pos = Point(x.toDouble(), y.toDouble())
+		var factor = (((pos-focalPoint1).length+(pos-focalPoint2).length-d)/cd).squared()
+		return if (factor<1.0) exp((factor*rollOff)-1)*rollOffFactor else strength
 	}
 }
 
 fun WritableImage.set(originalImage : Image) {
 	//val pixelWriter = this.getPixelWriter()
 	//val pixelReader = image.getPixelReader()
-	val palette = arrayOf(Color.BLACK, Color.WHITE, Color.RED, Color.LIME, Color.BLUE).map(Color::toMyColor)
+	val palette = arrayOf(Color.BLACK, Color.WHITE, Color.RED, Color.LIME, Color.BLUE, Color.GREY, Color.GREEN, Color.YELLOW).map(Color::toMyColor)
 	//val palette = intermediateColors(Color.WHITE, Color.GREEN, 8).union(intermediateColors(Color.BLACK, Color.GREEN, 8)).map { x -> x.toMyColor() }
 	val errorDiffusion = ErrorDiffusionMap(this.sizeX, this.sizeY)
 	val center = this.size/2.0
 
 	val brightness = 0.2
 
-	val vignettingFilter = VignettingFilter(center, center.lengthSquared*0.75, 0.5, 0.1)
-
+	//val vignettingFilter = VignettingFilter(center, center.lengthSquared*0.9, 0.5, 0.1)
+	val vignettingFilter = VignettingFilterEllipse(center, this.size*0.5, 0.2, 0.1)
+	
 	for(x in this.rangeX) {
 		for(y in this.rangeY) {
 			val pos = Point(x.toDouble(), y.toDouble())
 			var color = originalImage[x, y]
-			//color = color.deriveColor(0.0, 1.0, 1.0, 1.0)
+			color = Color.WHITE.toMyColor()
 			//color = color.invert()
 
-			color = color + brightness
+			//color = color + brightness
 
+			color = color.adjustContrast(0.25)
+			
 			// vignettierung
 			color = color - vignettingFilter[x, y]
+			
 
 			// TODO adjustContrast
 			// TODO scale down
@@ -224,15 +270,17 @@ fun WritableImage.set(originalImage : Image) {
 			// TODO pixel displacement
 
 			// noise
-			//color = color + MyColor.random(0.1*kotlin.math.cos(y.toDouble()/this.height*kotlin.math.PI)*kotlin.math.cos(x.toDouble()/this.width*kotlin.math.PI))
+			color = color + MyColor.random(0.1*cos(y.toDouble()/this.height*PI)*cos(x.toDouble()/this.width*PI))
 
 			// color reduction to palette
 			var (quantisedColor, quantisationError) = (color + errorDiffusion[x, y]).getQuantisedColor(palette)
 
 			// Floyd-Steinberg-Dithering
-			errorDiffusion.applyErrorDiffusionKernel(x, y, quantisationError, ErrorDiffusionKernel.MINIMIZED_AVERAGE_ERROR)
+			errorDiffusion.applyErrorDiffusionKernel(x, y, quantisationError*0.8, ErrorDiffusionKernel.MINIMIZED_AVERAGE_ERROR)
 
-			this[x, y] = quantisedColor
+			//color = quantisedColor
+			
+			this[x, y] = color
 		}
 	}
 }
