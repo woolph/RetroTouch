@@ -17,7 +17,7 @@ fun <T : Number> Number.to() : T { return this as T }
 
 data class MyColor(val red : Double = 0.0, val green : Double = 0.0, val blue : Double = 0.0, val opacity : Double = 1.0) {
 	fun toFXColor() = Color(red.clipToUni(), green.clipToUni(), blue.clipToUni(), opacity.clipToUni())
-
+	fun clipToUni() = MyColor(red.clipToUni(), green.clipToUni(), blue.clipToUni(), opacity.clipToUni())
 	fun invert() = MyColor(1-red, 1-green, 1-blue, opacity)
 
 	operator fun plus(value : Double) = adjustBrightness(offset = value)
@@ -80,7 +80,7 @@ fun Color.toMyColor() = MyColor(this.red, this.green, this.blue, this.opacity)
 
 fun intermediateColors(c1 : Color, c2 : Color, steps : Int) : Collection<Color> {
 	val list = ArrayList<Color>()
-	val factor = 1.0/(steps-1)
+	val factor = 1.0/(steps.toDouble()-1.0)
 	for(i in 0..steps-1) {
 		list.add(c1.interpolate(c2, factor*i))
 	}
@@ -335,7 +335,7 @@ fun getScaleFactors(scale : Double, pixelSize : IntPoint) : Pair<Double, Double>
 	return Pair<Double, Double>(scale*pixelSize.y*factor, scale*pixelSize.x*factor)
 }
 fun Image.process() : WritableImage {
-	val pixelRatioX = 4
+	val pixelRatioX = 2
 	val pixelRatioY = 3
 	var targetPixelSize = calcPixelSize(pixelRatioX, pixelRatioY)
 
@@ -348,7 +348,28 @@ fun Image.process() : WritableImage {
 	val result = WritableImage(targetWidth.toInt()*targetPixelSize.x, targetHeight.toInt()*targetPixelSize.y)
 
 
-	val palette = arrayOf(Color.BLACK, Color.WHITE, Color.RED, Color.LIME, Color.BLUE, Color.GREY, Color.GREEN, Color.YELLOW).map(Color::toMyColor)
+  val colorDepth = 32
+	val palette = mutableListOf(Color.WHITE.toMyColor())
+	palette.addAll(intermediateColors(Color.BLACK, Color.WHITE, 2*colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.BLACK, Color.RED, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.RED, Color.WHITE, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.BLACK, Color.LIME, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.LIME, Color.WHITE, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.BLACK, Color.BLUE, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.BLUE, Color.WHITE, colorDepth).map(Color::toMyColor))
+	/*
+	palette.addAll(intermediateColors(Color.BLACK, Color.YELLOW, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.WHITE, Color.YELLOW, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.BLACK, Color.MAGENTA, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.WHITE, Color.MAGENTA, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.BLACK, Color.CYAN, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.WHITE, Color.CYAN, colorDepth).map(Color::toMyColor))
+*/
+	/* palette.addAll(intermediateColors(Color.LIME, Color.BLUE, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.RED, Color.BLUE, colorDepth).map(Color::toMyColor))
+	palette.addAll(intermediateColors(Color.RED, Color.LIME, colorDepth).map(Color::toMyColor)) */
+
+	//val palette = mutableListOf(Color.BLACK, Color.WHITE, Color.RED, Color.LIME, Color.BLUE, Color.GREY, Color.GREEN, Color.YELLOW).map(Color::toMyColor)
 	//val palette = intermediateColors(Color.WHITE, Color.GREEN, 8).union(intermediateColors(Color.BLACK, Color.GREEN, 8)).map { x -> x.toMyColor() }
 	val errorDiffusion = ErrorDiffusionMap(result.sizeX, result.sizeY)
 	val center = result.size.toDoublePoint()/2.0
@@ -358,6 +379,7 @@ fun Image.process() : WritableImage {
 	//val vignettingFilter = VignettingFilter(center, center.lengthSquared*0.5, 0.1, 0.5)
 	val vignettingFilter = VignettingFilterEllipse(center, result.size.toDoublePoint()*2.0, -5.0, 0.2)
 
+	palette.map(MyColor::toFXColor).forEach { println("$it") }
 	for(x in result.rangeX) {
 		for(y in result.rangeY) {
 			val pos = DoublePoint(x, y)
@@ -380,14 +402,14 @@ fun Image.process() : WritableImage {
 			// TODO pixel displacement
 
 			// noise
-			//color = color + MyColor.random(0.2*cos(y.toDouble()/this.height*PI)*cos(x.toDouble()/this.width*PI))
+			//color = color + MyColor.random(0.1*cos(y.toDouble()/this.height*PI)*cos(x.toDouble()/this.width*PI))
 
 			// color reduction to palette
-			var (quantisedColor, quantisationError) = (color + errorDiffusion[x, y]).getQuantisedColor(palette)
+			var (quantisedColor, quantisationError) = (color + errorDiffusion[x, y]).clipToUni().getQuantisedColor(palette)
 
 			// Floyd-Steinberg-Dithering
-			errorDiffusion.applyErrorDiffusionKernel(x, y, quantisationError*0.8, ErrorDiffusionKernel.MINIMIZED_AVERAGE_ERROR)
-			//color = quantisedColor
+			errorDiffusion.applyErrorDiffusionKernel(x, y, quantisationError*1.0, ErrorDiffusionKernel.FLOYD_STEINBERG)
+			color = quantisedColor // TODO herausfinden, warum getQuantisedColor gefühlt nicht immer die beste wahl trifft
 
 			result[x, y, targetPixelSize] = color
 		}
