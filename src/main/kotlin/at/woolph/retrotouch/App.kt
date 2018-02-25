@@ -35,82 +35,89 @@ class MyView : View() {
 	val brightness = SimpleIntegerProperty()
 	val contrast = SimpleIntegerProperty()
 
-	val originalImage = Image("file:/E:/test.jpg", 800.0, 800.0, true, true)
-	val modifiedImage = WritableImage(originalImage.width.toInt(), originalImage.height.toInt())
+	val originalImage = Image("file:/E:/DSC_3262.jpg", 800.0, 800.0, true, true)
 
 	val displayType = DisplayMode.FULL_HORIZONTAL
 
 	init {
 		title = "test"
 
-		modifiedImage.set(originalImage)
+		val modifiedImage = originalImage.process()
 
-				with(root) {
-						style {
-								padding = box(20.px)
-						}
+		with(root) {
+				style {
+						padding = box(20.px)
+				}
 
-						center {
-								vbox(10.0) {
-										alignment = Pos.CENTER
+				center {
+						vbox(10.0) {
+								alignment = Pos.CENTER
 
-										when (displayType) {
-												DisplayMode.FULL_HORIZONTAL -> hbox(0.0) {
-															imageview(originalImage)
-															imageview(modifiedImage)
-														}
-												DisplayMode.FULL_VERTICAL -> vbox(0.0) {
-															imageview(originalImage)
-															imageview(modifiedImage)
-														}
-												DisplayMode.SPLIT_HORIZONTAL -> hbox(0.0) {
-															imageview(originalImage) {
-																viewport = Rectangle2D(0.0, 0.0, originalImage.width*0.5, originalImage.height)
-															}
-															imageview(modifiedImage) {
-																viewport = Rectangle2D(originalImage.width*0.5, 0.0, originalImage.width, originalImage.height)
-															}
-														}
-												DisplayMode.SPLIT_VERTICAL -> vbox(0.0) {
-															imageview(originalImage) {
-																viewport = Rectangle2D(0.0, 0.0, originalImage.width, originalImage.height*0.5)
-															}
-															imageview(modifiedImage) {
-																viewport = Rectangle2D(0.0, originalImage.height*0.5, originalImage.width, originalImage.height)
-															}
-														}
-												else -> {}
-										}
-										/*hbox(10.0) {
-						slider(-255,255,0){
-							bind(brightness)
-						}
-											label() {
-													bind(brightness)
-													style { fontSize = 25.px }
-											}
-					}
-										hbox(10.0) {
-						slider(-255,255,0){
-							bind(contrast)
-						}
-											label() {
-													bind(contrast)
-													style { fontSize = 25.px }
-											}
-					}
-										hbox(10.0) {
-											label() {
-													bind(counter)
-													style { fontSize = 25.px }
-											}
-											button("Click to increment").setOnAction {
-													increment()
-											}
-					}*/
+								when (displayType) {
+										DisplayMode.FULL_HORIZONTAL -> hbox(0.0) {
+													imageview(originalImage)
+													imageview(modifiedImage) {
+														setPreserveRatio(true)
+														setFitHeight(800.0)
+														setFitWidth(800.0)
+													}
+												}
+										DisplayMode.FULL_VERTICAL -> vbox(0.0) {
+													imageview(originalImage)
+													imageview(modifiedImage) {
+														setPreserveRatio(true)
+														setFitHeight(800.0)
+														setFitWidth(800.0)
+													}
+												}
+										DisplayMode.SPLIT_HORIZONTAL -> hbox(0.0) {
+													imageview(originalImage) {
+														viewport = Rectangle2D(0.0, 0.0, originalImage.width*0.5, originalImage.height)
+													}
+													imageview(modifiedImage) {
+														viewport = Rectangle2D(originalImage.width*0.5, 0.0, originalImage.width, originalImage.height)
+													}
+												}
+										DisplayMode.SPLIT_VERTICAL -> vbox(0.0) {
+													imageview(originalImage) {
+														viewport = Rectangle2D(0.0, 0.0, originalImage.width, originalImage.height*0.5)
+													}
+													imageview(modifiedImage) {
+														viewport = Rectangle2D(0.0, originalImage.height*0.5, originalImage.width, originalImage.height)
+													}
+												}
+										else -> {}
 								}
+								/*hbox(10.0) {
+				slider(-255,255,0){
+					bind(brightness)
+				}
+									label() {
+											bind(brightness)
+											style { fontSize = 25.px }
+									}
+			}
+								hbox(10.0) {
+				slider(-255,255,0){
+					bind(contrast)
+				}
+									label() {
+											bind(contrast)
+											style { fontSize = 25.px }
+									}
+			}
+								hbox(10.0) {
+									label() {
+											bind(counter)
+											style { fontSize = 25.px }
+									}
+									button("Click to increment").setOnAction {
+											increment()
+									}
+			}*/
 						}
 				}
+		}
 		}
 
 		fun increment() {
