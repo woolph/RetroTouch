@@ -35,12 +35,12 @@ class MyView : View() {
 	val brightness = SimpleIntegerProperty()
 	val contrast = SimpleIntegerProperty()
 
-	val originalImage = Image("file:/E:/2016-08-22 17.31.10.jpg", 800.0, 800.0, true, true)
+	val originalImage = Image("file:/E:/IMG_20170813_121816.jpg", 800.0, 800.0, true, true)
 
 	val displayType = DisplayMode.FULL_HORIZONTAL
 
 	init {
-		title = "test"
+		title = "RetroTouch"
 
 		val modifiedImage = originalImage.process()
 
@@ -55,7 +55,11 @@ class MyView : View() {
 
 								when (displayType) {
 										DisplayMode.FULL_HORIZONTAL -> hbox(0.0) {
-													imageview(originalImage)
+													/* imageview(originalImage) {
+														setPreserveRatio(true)
+														setFitHeight(800.0)
+														setFitWidth(800.0)
+													} */
 													imageview(modifiedImage) {
 														setPreserveRatio(true)
 														setFitHeight(800.0)
@@ -86,7 +90,6 @@ class MyView : View() {
 														viewport = Rectangle2D(0.0, originalImage.height*0.5, originalImage.width, originalImage.height)
 													}
 												}
-										else -> {}
 								}
 								/*hbox(10.0) {
 				slider(-255,255,0){

@@ -8,12 +8,30 @@ import javafx.scene.image.Image
 import javafx.scene.image.WritableImage
 import javafx.scene.paint.Color
 
+import java.awt.image.BufferedImage
+import javafx.embed.swing.SwingFXUtils
+import javax.imageio.ImageIO
+
 import kotlin.math.*
+import kotlin.coroutines.experimental.*
 
 fun Double.clip(min : Double, max : Double) = if (this<min) min else (if (this>max) max else this)
 fun Double.clipToUni() = this.clip(0.0, 1.0)
 fun Double.squared() = this*this
 fun <T : Number> Number.to() : T { return this as T }
+
+infix fun ClosedRange<Double>.step(step: Double): Iterable<Double> {
+    require(start.isFinite())
+    require(endInclusive.isFinite())
+    require(step > 0.0) { "Step must be positive, was: $step." }
+    val sequence = generateSequence(start) { previous ->
+        if (previous == Double.POSITIVE_INFINITY) return@generateSequence null
+        val next = previous + step
+        if (next > endInclusive) null else next
+    }
+    return sequence.asIterable()
+}
+
 
 data class MyColor(val red : Double = 0.0, val green : Double = 0.0, val blue : Double = 0.0, val opacity : Double = 1.0) {
 	fun toFXColor() = Color(red.clipToUni(), green.clipToUni(), blue.clipToUni(), opacity.clipToUni())
@@ -47,6 +65,37 @@ data class MyColor(val red : Double = 0.0, val green : Double = 0.0, val blue : 
 		return MyColor(red, green, blue, opacity)
 	}
 
+	/**
+	 * see https://www.pocketmagic.net/enhance-saturation-in-images-programatically/
+	 */
+	fun getHSB(): Triple<Double, Double, Double> {
+		if(red==green && green==blue) {
+			return Triple<Double, Double, Double>(0.0, 0.0, red)
+		} else {
+			val maxColor = max(red, max(green, blue))
+			val minColor = min(red, min(green, blue))
+			val distance = maxColor - minColor
+			val brightness = (maxColor+minColor)/2
+			val saturation = if (brightness<0.5) distance/(maxColor+minColor) else distance/(2.0 - distance)
+			val hue = (when(maxColor) {
+				red -> (green - blue) / distance
+				green -> 2.0 + (blue - red) / distance
+				else -> 4.0 + (red - blue) / distance
+			} * 60.0) % 360.0
+			return Triple<Double, Double, Double>(hue, saturation, brightness)
+		}
+	}
+
+	fun adjustSaturation(saturation : Double = 0.0) : MyColor {
+		val (h, s, b) = this.getHSB()
+		return MyColor.getFromHSB(h, (s+saturation).clipToUni(), b, opacity)
+	}
+
+	fun adjustHue(hue : Double = 0.0) : MyColor {
+		val (h, s, b) = this.getHSB()
+		return MyColor.getFromHSB(h+hue, s, b, opacity)
+	}
+
 	fun getQuantisedColor(palette : Iterable<MyColor>) : Pair<MyColor, MyColor> {
 		var nearestDistance = Double.MAX_VALUE
 		var nearestColor = this
@@ -65,6 +114,47 @@ data class MyColor(val red : Double = 0.0, val green : Double = 0.0, val blue : 
 		fun random(factor : Double = 1.0) : MyColor {
 			val randomizer = ThreadLocalRandom.current()
 			return MyColor(factor*(2.0*randomizer.nextDouble()-1.0), factor*(2.0*randomizer.nextDouble()-1.0), factor*(2.0*randomizer.nextDouble()-1.0), 1.0)
+		}
+
+		/**
+		 * see https://www.pocketmagic.net/enhance-saturation-in-images-programatically/
+		 */
+		fun getFromHSB(hue : Double, saturation : Double, brightness : Double, opacity : Double = 1.0) : MyColor {
+			if(saturation==0.0) {
+				return MyColor(brightness, brightness, brightness, opacity)
+			} else {
+				val hue2 = (hue % 360.0) / 360.0
+				val temp2 = if(brightness<0.5) brightness * (1 + saturation) else (brightness + saturation) - (brightness * saturation)
+				val temp1 = 2 * brightness - temp2
+
+				var tempr = hue2 + 1.0 / 3.0
+				if(tempr > 1.0) tempr -= 1.0
+				var tempg = hue2
+				var tempb = hue2 - 1.0 / 3.0
+				if(tempb < 0.0) tempb += 1.0
+
+				val r = when {
+					tempr < 1.0 / 6.0 -> temp1 + (temp2 - temp1) * 6.0 * tempr
+					tempr < 0.5       -> temp2
+					tempr < 2.0 / 3.0 -> temp1 + (temp2 - temp1) * ((2.0 / 3.0) - tempr) * 6.0
+					else              -> temp1
+				}
+
+				val g = when {
+					tempg < 1.0 / 6.0 -> temp1 + (temp2 - temp1) * 6.0 * tempg
+					tempg < 0.5       -> temp2
+					tempg < 2.0 / 3.0 -> temp1 + (temp2 - temp1) * ((2.0 / 3.0) - tempg) * 6.0
+					else              -> temp1
+				}
+
+				val b = when {
+					tempb < 1.0 / 6.0 -> temp1 + (temp2 - temp1) * 6.0 * tempb
+					tempb < 0.5       -> temp2
+					tempb < 2.0 / 3.0 -> temp1 + (temp2 - temp1) * ((2.0 / 3.0) - tempb) * 6.0
+					else              -> temp1
+				}
+				return MyColor(r, g, b, opacity)
+			}
 		}
 
 		val ColorChannelDepth = 8.0
@@ -334,12 +424,47 @@ fun getScaleFactors(scale : Double, pixelSize : IntPoint) : Pair<Double, Double>
 	var factor = 1/max(pixelSize.x.toDouble(), pixelSize.y.toDouble())
 	return Pair<Double, Double>(scale*pixelSize.y*factor, scale*pixelSize.x*factor)
 }
+
+fun getDoubleRange(start : Double, end : Double, steps : Int) : Collection<Double> {
+  val span = end-start
+  return (0 .. steps-1).map({ step : Int -> start+span*step.toDouble()/(steps-1) } as (Int) -> Double)
+}
+
+fun getDoubleRange2(start : Double, end : Double, steps : Int) : Collection<Double> {
+  val span = end-start
+  return (0 until steps).map({ step : Int -> start+span*step.toDouble()/(steps) } as (Int) -> Double)
+}
+
+fun generateColorPalette(hueSteps : Int, saturationSteps : Int, brightnessSteps : Int, hueOffset : Double = 0.0) : MutableList<MyColor> {
+	return generateColorPalette(
+    getDoubleRange2(hueOffset, 360.0+hueOffset, hueSteps),
+    getDoubleRange(0.0, 1.0, saturationSteps),
+    getDoubleRange(0.0, 1.0, brightnessSteps))
+}
+
+
+fun generateColorPalette(hues : Collection<Double>, saturations : Collection<Double>, brightnesses : Collection<Double>) : MutableList<MyColor> {
+	val palette = mutableListOf<MyColor>()
+
+	for(hue in hues) {
+    val h = hue % 360.0
+		for(saturation in saturations) {
+      val s = saturation.clipToUni()
+			for(brightness in brightnesses) {
+				palette.add(Color.hsb(h, s, brightness.clipToUni()).toMyColor())
+			}
+		}
+	}
+
+	return palette
+}
+
 fun Image.process() : WritableImage {
-	val pixelRatioX = 2
-	val pixelRatioY = 3
+	val pixelRatioX = 3
+	val pixelRatioY = 2
 	var targetPixelSize = calcPixelSize(pixelRatioX, pixelRatioY)
 
-	val (scaleX, scaleY) = getScaleFactors(0.33, targetPixelSize)
+	val (scaleX, scaleY) = getScaleFactors(0.2, targetPixelSize)
 	val targetWidth = this.width*scaleX // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
 	val targetHeight = this.height*scaleY // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
 
@@ -347,30 +472,9 @@ fun Image.process() : WritableImage {
 
 	val result = WritableImage(targetWidth.toInt()*targetPixelSize.x, targetHeight.toInt()*targetPixelSize.y)
 
-
-  val colorDepth = 32
-	val palette = mutableListOf(Color.WHITE.toMyColor())
-	palette.addAll(intermediateColors(Color.BLACK, Color.WHITE, 2*colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.BLACK, Color.RED, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.RED, Color.WHITE, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.BLACK, Color.LIME, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.LIME, Color.WHITE, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.BLACK, Color.BLUE, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.BLUE, Color.WHITE, colorDepth).map(Color::toMyColor))
-	/*
-	palette.addAll(intermediateColors(Color.BLACK, Color.YELLOW, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.WHITE, Color.YELLOW, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.BLACK, Color.MAGENTA, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.WHITE, Color.MAGENTA, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.BLACK, Color.CYAN, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.WHITE, Color.CYAN, colorDepth).map(Color::toMyColor))
-*/
-	/* palette.addAll(intermediateColors(Color.LIME, Color.BLUE, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.RED, Color.BLUE, colorDepth).map(Color::toMyColor))
-	palette.addAll(intermediateColors(Color.RED, Color.LIME, colorDepth).map(Color::toMyColor)) */
-
+	val palette = generateColorPalette(hueSteps=2, saturationSteps=8, brightnessSteps=8, hueOffset=10.0)
 	//val palette = mutableListOf(Color.BLACK, Color.WHITE, Color.RED, Color.LIME, Color.BLUE, Color.GREY, Color.GREEN, Color.YELLOW).map(Color::toMyColor)
-	//val palette = intermediateColors(Color.WHITE, Color.GREEN, 8).union(intermediateColors(Color.BLACK, Color.GREEN, 8)).map { x -> x.toMyColor() }
+
 	val errorDiffusion = ErrorDiffusionMap(result.sizeX, result.sizeY)
 	val center = result.size.toDoublePoint()/2.0
 
@@ -379,7 +483,6 @@ fun Image.process() : WritableImage {
 	//val vignettingFilter = VignettingFilter(center, center.lengthSquared*0.5, 0.1, 0.5)
 	val vignettingFilter = VignettingFilterEllipse(center, result.size.toDoublePoint()*2.0, -5.0, 0.2)
 
-	palette.map(MyColor::toFXColor).forEach { println("$it") }
 	for(x in result.rangeX) {
 		for(y in result.rangeY) {
 			val pos = DoublePoint(x, y)
@@ -391,29 +494,34 @@ fun Image.process() : WritableImage {
 			//color = color.invert()
 
 			// brightness
-			//color = color + brightness
+			//color = color.adjustBrightness(-0.1)
 
 			// vignettierung
 			//color = color - vignettingFilter[x, y]
 
 			// contrast
-			//color = color.adjustContrast(0.25)
+			color = color.adjustContrast(0.2)
+
+			// saturation
+			//color = color.adjustSaturation(1.0)
 
 			// TODO pixel displacement
 
 			// noise
-			//color = color + MyColor.random(0.1*cos(y.toDouble()/this.height*PI)*cos(x.toDouble()/this.width*PI))
+			color = color + MyColor.random(0.02*cos(y.toDouble()/this.height*PI)*cos(x.toDouble()/this.width*PI))
 
 			// color reduction to palette
 			var (quantisedColor, quantisationError) = (color + errorDiffusion[x, y]).clipToUni().getQuantisedColor(palette)
 
 			// Floyd-Steinberg-Dithering
-			errorDiffusion.applyErrorDiffusionKernel(x, y, quantisationError*1.0, ErrorDiffusionKernel.FLOYD_STEINBERG)
+			errorDiffusion.applyErrorDiffusionKernel(x, y, quantisationError*1.0, ErrorDiffusionKernel.MINIMIZED_AVERAGE_ERROR)
 			color = quantisedColor // TODO herausfinden, warum getQuantisedColor gefühlt nicht immer die beste wahl trifft
 
 			result[x, y, targetPixelSize] = color
 		}
 	}
+
+  ImageIO.write(SwingFXUtils.fromFXImage(result, null), "png", java.io.File("E:/result.png"))
 
 	return result
 }
