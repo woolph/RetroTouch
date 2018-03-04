@@ -574,11 +574,11 @@ fun generateColorPalette(image : Image, colorCount : Int) : MutableSet<MyColor> 
 }
 
 fun Image.process() : WritableImage {
-	val pixelRatioX = 1
-	val pixelRatioY = 1
+	val pixelRatioX = 3
+	val pixelRatioY = 4
 	var targetPixelSize = calcPixelSize(pixelRatioX, pixelRatioY)
 
-	val (scaleX, scaleY) = getScaleFactors(0.2, targetPixelSize)
+	val (scaleX, scaleY) = getScaleFactors(0.5, targetPixelSize)
 	val targetWidth = floor(this.width*scaleX) // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
 	val targetHeight = floor(this.height*scaleY) // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
 
@@ -587,9 +587,10 @@ fun Image.process() : WritableImage {
 	val result = WritableImage(targetWidth.toInt()*targetPixelSize.x, targetHeight.toInt()*targetPixelSize.y)
 
 	//val palette = generateColorPalette(hueSteps=2, saturationSteps=5, brightnessSteps=5, hueOffset=0.0)
-	val palette = generateColorPalette(this, 6)
+	val palette = generateColorPalette(this, 8)
 	//val palette = mutableListOf(Color.BLACK, Color.WHITE, Color.RED, Color.LIME, Color.BLUE, Color.GREY, Color.GREEN, Color.YELLOW).map(Color::toMyColor)
 	println(palette.size)
+	println(palette.map(MyColor::toFXColor).map { c -> c.toString().substring(2,8) })
 
 	val errorDiffusion = ErrorDiffusionMap(result.sizeX, result.sizeY)
 	val center = result.size.toDoublePoint()/2.0
@@ -621,12 +622,12 @@ fun Image.process() : WritableImage {
 			// saturation
 			//color = color.adjustSaturation(1.0)
 
-			// TODO pixel displacement
+			// pixel displacement
 			var x2 = x //+ round(0.5+0.5*sin(y.toDouble()*0.09)*cos(y.toDouble()*0.7)).toInt()
-			var y2 = y
+			var y2 = y // + round(5.0*sin(x.toDouble()*0.09)*cos(x.toDouble()*0.7)).toInt()
 
 			// noise
-			color = color + MyColor.random(0.02*cos(y.toDouble()/this.height*PI)*cos(x.toDouble()/this.width*PI))
+			color = color + MyColor.random(0.05*cos(y.toDouble()/this.height*PI)*cos(x.toDouble()/this.width*PI))
 
 			// color reduction to palette
 			var (quantisedColor, quantisationError) = (color + errorDiffusion[x, y]).clipToUni().getQuantisedColor(palette)
@@ -636,6 +637,20 @@ fun Image.process() : WritableImage {
 			color = quantisedColor // TODO herausfinden, warum getQuantisedColor gefühlt nicht immer die beste wahl trifft
 
 			result[x2, y2, targetPixelSize] = color
+
+			// filling up empty pixels due to pixel displacement
+			if(x!=x2 && (x==0 || x==result.sizeX-1)) {
+				val range = if(x==0) 0 until x2 else x2+1 until result.sizeX
+				for(x3 in range) {
+					result[x3, y2, targetPixelSize] = color
+				}
+			}
+			if(y!=y2 && (y==0 || y==result.sizeY-1)) {
+				val range = if(y==0) 0 until y2 else y2+1 until result.sizeY
+				for(y3 in range) {
+					result[x2, y3, targetPixelSize] = color
+				}
+			}
 		}
 	}
 
