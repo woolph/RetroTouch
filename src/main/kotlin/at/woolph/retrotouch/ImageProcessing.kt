@@ -21,15 +21,15 @@ fun Double.squared() = this*this
 fun <T : Number> Number.to() : T { return this as T }
 
 infix fun ClosedRange<Double>.step(step: Double): Iterable<Double> {
-    require(start.isFinite())
-    require(endInclusive.isFinite())
-    require(step > 0.0) { "Step must be positive, was: $step." }
-    val sequence = generateSequence(start) { previous ->
-        if (previous == Double.POSITIVE_INFINITY) return@generateSequence null
-        val next = previous + step
-        if (next > endInclusive) null else next
-    }
-    return sequence.asIterable()
+		require(start.isFinite())
+		require(endInclusive.isFinite())
+		require(step > 0.0) { "Step must be positive, was: $step." }
+		val sequence = generateSequence(start) { previous ->
+				if (previous == Double.POSITIVE_INFINITY) return@generateSequence null
+				val next = previous + step
+				if (next > endInclusive) null else next
+		}
+		return sequence.asIterable()
 }
 
 
@@ -40,8 +40,8 @@ data class MyColor(val red : Double = 0.0, val green : Double = 0.0, val blue : 
 
 	operator fun plus(value : Double) = adjustBrightness(offset = value)
 	operator fun minus(value : Double) = adjustBrightness(offset = -value)
-	operator fun times(value : Double) = adjustBrightness(factor = value)
-	operator fun div(value : Double) = adjustBrightness(factor = 1/value)
+	operator fun times(value : Number) = adjustBrightness(factor = value.toDouble())
+	operator fun div(value : Number) = adjustBrightness(factor = 1.0/value.toDouble())
 
 	operator fun unaryMinus() = MyColor(-red, -green, -blue, opacity)
 	operator fun plus(value : MyColor) = MyColor(red+value.red, green+value.green, blue+value.blue, opacity)
@@ -229,9 +229,9 @@ operator fun Image.get(x : Int, y : Int, sourceWindowSize : DoublePoint) : MyCol
 operator fun WritableImage.set(x : Int, y : Int, color : MyColor) { this.getPixelWriter().setColor(x, y, color.toFXColor()) }
 operator fun WritableImage.set(x : Int, y : Int, pixelSize : IntPoint, color : MyColor) {
 	for(i in x*pixelSize.x until (x+1)*pixelSize.x) {
-		if(i<this.sizeX) {
+		if(0<=i && i<this.sizeX) {
 			for(j in y*pixelSize.y until (y+1)*pixelSize.y) {
-				if(j<this.sizeY) {
+				if(0<=j && j<this.sizeY) {
 					this.set(i, j, color)
 				}
 			}
@@ -426,30 +426,30 @@ fun getScaleFactors(scale : Double, pixelSize : IntPoint) : Pair<Double, Double>
 }
 
 fun getDoubleRange(start : Double, end : Double, steps : Int) : Collection<Double> {
-  val span = end-start
-  return (0 .. steps-1).map({ step : Int -> start+span*step.toDouble()/(steps-1) } as (Int) -> Double)
+	val span = end-start
+	return (0 .. steps-1).map({ step : Int -> start+span*step.toDouble()/(steps-1) } as (Int) -> Double)
 }
 
 fun getDoubleRange2(start : Double, end : Double, steps : Int) : Collection<Double> {
-  val span = end-start
-  return (0 until steps).map({ step : Int -> start+span*step.toDouble()/(steps) } as (Int) -> Double)
+	val span = end-start
+	return (0 until steps).map({ step : Int -> start+span*step.toDouble()/(steps) } as (Int) -> Double)
 }
 
-fun generateColorPalette(hueSteps : Int, saturationSteps : Int, brightnessSteps : Int, hueOffset : Double = 0.0) : MutableList<MyColor> {
+fun generateColorPalette(hueSteps : Int, saturationSteps : Int, brightnessSteps : Int, hueOffset : Double = 0.0) : MutableSet<MyColor> {
 	return generateColorPalette(
-    getDoubleRange2(hueOffset, 360.0+hueOffset, hueSteps),
-    getDoubleRange(0.0, 1.0, saturationSteps),
-    getDoubleRange(0.0, 1.0, brightnessSteps))
+		getDoubleRange2(hueOffset, 360.0+hueOffset, hueSteps),
+		getDoubleRange(0.0, 1.0, saturationSteps),
+		getDoubleRange(0.0, 1.0, brightnessSteps))
 }
 
 
-fun generateColorPalette(hues : Collection<Double>, saturations : Collection<Double>, brightnesses : Collection<Double>) : MutableList<MyColor> {
-	val palette = mutableListOf<MyColor>()
+fun generateColorPalette(hues : Collection<Double>, saturations : Collection<Double>, brightnesses : Collection<Double>) : MutableSet<MyColor> {
+	val palette = mutableSetOf<MyColor>()
 
 	for(hue in hues) {
-    val h = hue % 360.0
+		val h = hue % 360.0
 		for(saturation in saturations) {
-      val s = saturation.clipToUni()
+			val s = saturation.clipToUni()
 			for(brightness in brightnesses) {
 				palette.add(Color.hsb(h, s, brightness.clipToUni()).toMyColor())
 			}
@@ -459,21 +459,137 @@ fun generateColorPalette(hues : Collection<Double>, saturations : Collection<Dou
 	return palette
 }
 
+fun generateColorPalette(image : Image, threshold : Double) : MutableSet<MyColor> {
+	val palette = mutableMapOf<MyColor, Int>()
+
+	// TODO unfortunately no direct control over palette size (color count) ?!
+
+	for(x in image.rangeX) {
+		for(y in image.rangeY) {
+			var color = image[x, y]
+
+			var nearestDistance = Double.MAX_VALUE
+			var nearestColor = color
+
+			for(paletteColor in palette.keys) {
+				var distance = (color-paletteColor).length
+
+				if(distance <= threshold && distance < nearestDistance) {
+					nearestColor = paletteColor
+					nearestDistance = distance
+				}
+			}
+
+			if(nearestDistance <= threshold) {
+				var weight = palette[nearestColor] ?: 1
+				var newColor = (nearestColor * weight + color) / (1.0 + weight)
+				palette.remove(nearestColor) // TODO not very efficient to cosntantly remove and add items, maybe better to work with index an fixed array?!
+				palette[newColor] = weight + 1
+			} else {
+				palette[color] = 1
+			}
+		}
+	}
+	return palette.keys
+}
+
+fun generateColorPalette(image : Image, colorCount : Int) : MutableSet<MyColor> {
+	val palette = Array<MyColor>(colorCount, { i -> MyColor() })
+	val weights = Array<Int>(colorCount, { i -> 0 })
+
+	var threshold = 0.0
+
+	for(x in image.rangeX) {
+		for(y in image.rangeY) {
+			var color = image[x, y]
+
+			var nearestDistance = Double.MAX_VALUE
+			var nearestColorIndex = -1
+
+			loop@ for(i in palette.indices) {
+				if(weights[i] == 0 ) {
+					nearestColorIndex = i
+					nearestDistance = -1.0
+					break@loop
+				} else {
+					var distance = (color-palette[i]).length
+
+					if(distance < nearestDistance) {
+						nearestColorIndex = i
+						nearestDistance = distance
+					}
+				}
+			}
+
+			if(nearestColorIndex >= 0) {
+				if(nearestDistance <= threshold) { // if color distance is beneath threshold, combine them
+					var weight = weights[nearestColorIndex]
+					weights[nearestColorIndex] = weight + 1
+					palette[nearestColorIndex] = (palette[nearestColorIndex] * weight + color) / weights[nearestColorIndex]
+				} else { // otherwise check if we should combine existing color to make place for the new one
+					var closestPairIndex1 = 0
+					var closestPairIndex2 = 1
+					var closestPairDistance = Double.MAX_VALUE
+					// TODO consider new color for combination as well
+					// TODO closestDistance is now the new threshold!
+
+					for(i1 in 0 until colorCount-1) {
+						for(i2 in i1+1 until colorCount) {
+							var distance = (palette[i1]-palette[i2]).length
+
+							if(distance < closestPairDistance) {
+								closestPairIndex1 = i1
+								closestPairIndex2 = i2
+								closestPairDistance = distance
+							}
+						}
+					}
+
+					// if no pairing of existing palette is closer, than the new color to one of the palette color
+					if(nearestDistance < closestPairDistance) {
+						// combine the new color with the nearestPalette color and make their distance the new threshold
+						var weight = weights[nearestColorIndex]
+						weights[nearestColorIndex] = weight + 1
+						palette[nearestColorIndex] = (palette[nearestColorIndex] * weight + color) / weights[nearestColorIndex]
+						threshold = nearestDistance
+					} else { // otherwise (if a pairing of existing palette is closer)
+						// combine this palette colors to free an entry in the palette for the new color
+						var weight1 = weights[closestPairIndex1]
+						var weight2 = weights[closestPairIndex2]
+
+						weights[closestPairIndex1] = weight1 + weight2
+						palette[closestPairIndex1] = (palette[closestPairIndex1] * weight1 + palette[closestPairIndex2] * weight2) / weights[closestPairIndex1]
+
+						threshold = closestPairDistance // make their distance the new threshold
+
+						// and of course add the new color to the freed entry
+						weights[closestPairIndex2] = 1
+						palette[closestPairIndex2] = color
+					}
+				}
+			}
+		}
+	}
+	return palette.toMutableSet()
+}
+
 fun Image.process() : WritableImage {
-	val pixelRatioX = 3
-	val pixelRatioY = 2
+	val pixelRatioX = 1
+	val pixelRatioY = 1
 	var targetPixelSize = calcPixelSize(pixelRatioX, pixelRatioY)
 
 	val (scaleX, scaleY) = getScaleFactors(0.2, targetPixelSize)
-	val targetWidth = this.width*scaleX // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
-	val targetHeight = this.height*scaleY // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
+	val targetWidth = floor(this.width*scaleX) // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
+	val targetHeight = floor(this.height*scaleY) // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
 
 	val sourceWindowSize = DoublePoint(this.width/targetWidth, this.height/targetHeight)
 
 	val result = WritableImage(targetWidth.toInt()*targetPixelSize.x, targetHeight.toInt()*targetPixelSize.y)
 
-	val palette = generateColorPalette(hueSteps=2, saturationSteps=8, brightnessSteps=8, hueOffset=10.0)
+	//val palette = generateColorPalette(hueSteps=2, saturationSteps=5, brightnessSteps=5, hueOffset=0.0)
+	val palette = generateColorPalette(this, 6)
 	//val palette = mutableListOf(Color.BLACK, Color.WHITE, Color.RED, Color.LIME, Color.BLUE, Color.GREY, Color.GREEN, Color.YELLOW).map(Color::toMyColor)
+	println(palette.size)
 
 	val errorDiffusion = ErrorDiffusionMap(result.sizeX, result.sizeY)
 	val center = result.size.toDoublePoint()/2.0
@@ -500,12 +616,14 @@ fun Image.process() : WritableImage {
 			//color = color - vignettingFilter[x, y]
 
 			// contrast
-			color = color.adjustContrast(0.2)
+			//color = color.adjustContrast(0.2)
 
 			// saturation
 			//color = color.adjustSaturation(1.0)
 
 			// TODO pixel displacement
+			var x2 = x //+ round(0.5+0.5*sin(y.toDouble()*0.09)*cos(y.toDouble()*0.7)).toInt()
+			var y2 = y
 
 			// noise
 			color = color + MyColor.random(0.02*cos(y.toDouble()/this.height*PI)*cos(x.toDouble()/this.width*PI))
@@ -517,11 +635,11 @@ fun Image.process() : WritableImage {
 			errorDiffusion.applyErrorDiffusionKernel(x, y, quantisationError*1.0, ErrorDiffusionKernel.MINIMIZED_AVERAGE_ERROR)
 			color = quantisedColor // TODO herausfinden, warum getQuantisedColor gefühlt nicht immer die beste wahl trifft
 
-			result[x, y, targetPixelSize] = color
+			result[x2, y2, targetPixelSize] = color
 		}
 	}
 
-  ImageIO.write(SwingFXUtils.fromFXImage(result, null), "png", java.io.File("E:/result.png"))
+	ImageIO.write(SwingFXUtils.fromFXImage(result, null), "png", java.io.File("E:/result.png"))
 
 	return result
 }
