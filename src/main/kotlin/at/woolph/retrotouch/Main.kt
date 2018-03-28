@@ -1,7 +1,7 @@
 package at.woolph.retrotouch
 
-import javafx.application.Application
+import tornadofx.launch
 
 fun main(args: Array<String>) {
-	Application.launch(MyApp::class.java, *args)
+	launch<MyApp>(*args)
 }

@@ -21,8 +21,7 @@ import tornadofx.style
 import tornadofx.vbox
 import java.awt.image.BufferedImage
 
-class MyApp : App() {
-		override val primaryView = MyView::class
+class MyApp : App(MyView::class) {
 }
 
 enum class DisplayMode {
@@ -37,7 +36,7 @@ class MyView : View() {
 	val brightness = SimpleIntegerProperty()
 	val contrast = SimpleIntegerProperty()
 
-	val originalImage = Image("file:/E:/thumb-1920-754564.png", 800.0, 800.0, true, true)
+	val originalImage = Image("file:/E:/2016-08-21 14.24.45.jpg")//, 800.0, 800.0, true, true)
 
 	val displayType = DisplayMode.FULL_HORIZONTAL
 
@@ -45,6 +44,10 @@ class MyView : View() {
 		title = "RetroTouch"
 
 		val modifiedImage = originalImage.process()
+
+		//val palette = generateColorPalette(originalImage, 8)
+
+		//openInternalWindow(PaletteEditor::class)
 
 		with(root) {
 				style {
@@ -57,11 +60,11 @@ class MyView : View() {
 
 								when (displayType) {
 										DisplayMode.FULL_HORIZONTAL -> hbox(0.0) {
-													/* imageview(originalImage) {
+													imageview(originalImage) {
 														setPreserveRatio(true)
 														setFitHeight(800.0)
 														setFitWidth(800.0)
-													} */
+													}
 													imageview(modifiedImage) {
 														setPreserveRatio(true)
 														setFitHeight(800.0)
@@ -123,9 +126,5 @@ class MyView : View() {
 						}
 				}
 		}
-		}
-
-		fun increment() {
-				counter.value += 1
-		}
+	}
 }

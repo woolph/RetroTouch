@@ -3,21 +3,18 @@
  * @author 001121673 Wolfgang Mayer
  */
 
-wrapper.gradleVersion = '4.3'
-
 buildscript {
-    ext.kotlin_version = '1.2.21'
+    ext.kotlin_version = '1.2.31'
 
 	repositories {
 		mavenCentral()
 	}
 
     dependencies {
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath group: 'org.jetbrains.kotlin', name: 'kotlin-gradle-plugin', version: kotlin_version
     }
 }
 
-apply plugin: 'eclipse'
 apply plugin: 'kotlin'
 apply plugin: 'maven'
 apply plugin: 'application'
@@ -31,21 +28,19 @@ project.mainClassName = 'at.woolph.retrotouch.MainKt'
 
 sourceCompatibility = '1.8'
 compileJava.options.encoding = 'UTF-8'
+compileKotlin.kotlinOptions.jvmTarget = sourceCompatibility
 
 repositories {
 	mavenCentral()
 }
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-	compile 'no.tornado:tornadofx:1.7.13'
+  compile group: 'org.jetbrains.kotlin', name: 'kotlin-stdlib', version: kotlin_version
+	compile group: 'no.tornado', name: 'tornadofx', version: '1.7.13'
 
 	testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 
-compileKotlin {
-    kotlinOptions.jvmTarget = sourceCompatibility
-}
 
 run {
 	args '--debug'

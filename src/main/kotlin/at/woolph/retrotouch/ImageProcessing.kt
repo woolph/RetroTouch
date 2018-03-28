@@ -578,7 +578,7 @@ fun Image.process() : WritableImage {
 	val pixelRatioY = 4
 	var targetPixelSize = calcPixelSize(pixelRatioX, pixelRatioY)
 
-	val (scaleX, scaleY) = getScaleFactors(0.5, targetPixelSize)
+	val (scaleX, scaleY) = getScaleFactors(0.1, targetPixelSize)
 	val targetWidth = floor(this.width*scaleX) // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
 	val targetHeight = floor(this.height*scaleY) // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
 
@@ -586,8 +586,8 @@ fun Image.process() : WritableImage {
 
 	val result = WritableImage(targetWidth.toInt()*targetPixelSize.x, targetHeight.toInt()*targetPixelSize.y)
 
-	//val palette = generateColorPalette(hueSteps=2, saturationSteps=5, brightnessSteps=5, hueOffset=0.0)
-	val palette = generateColorPalette(this, 8)
+	//val palette = generateColorPalette(hueSteps=6, saturationSteps=5, brightnessSteps=5, hueOffset=0.0)
+	val palette = generateColorPalette(this, 16)
 	//val palette = mutableListOf(Color.BLACK, Color.WHITE, Color.RED, Color.LIME, Color.BLUE, Color.GREY, Color.GREEN, Color.YELLOW).map(Color::toMyColor)
 	println(palette.size)
 	println(palette.map(MyColor::toFXColor).map { c -> c.toString().substring(2,8) })
@@ -622,19 +622,29 @@ fun Image.process() : WritableImage {
 			// saturation
 			//color = color.adjustSaturation(1.0)
 
-			// pixel displacement
-			var x2 = x //+ round(0.5+0.5*sin(y.toDouble()*0.09)*cos(y.toDouble()*0.7)).toInt()
-			var y2 = y // + round(5.0*sin(x.toDouble()*0.09)*cos(x.toDouble()*0.7)).toInt()
-
 			// noise
-			color = color + MyColor.random(0.05*cos(y.toDouble()/this.height*PI)*cos(x.toDouble()/this.width*PI))
+			//color = color + MyColor.random(0.05*cos(y.toDouble()/this.height*PI)*cos(x.toDouble()/this.width*PI))
+
+			// eliminate greenish colors for 80s puprlish coloring
+			// by setting green channel to zero and rising red and blue channel
+			// accordingly to maintain perceived brightnessSteps
+			/* color = color.clipToUni()
+			val red2 = color.red.squared() * 0.241 // perceived brigthness factor according to http://www.nbdtech.com/Blog/archive/2008/04/27/Calculating-the-Perceived-Brightness-of-a-Color.aspx
+			val green2 = color.green.squared() * 0.691
+			val blue2 = color.blue.squared() * 0.068
+			val factor = sqrt((red2+green2+blue2)/(red2+blue2))
+			color = MyColor(factor * color.red, 0.0, factor * color.blue, 1.0) */
 
 			// color reduction to palette
 			var (quantisedColor, quantisationError) = (color + errorDiffusion[x, y]).clipToUni().getQuantisedColor(palette)
 
 			// Floyd-Steinberg-Dithering
-			errorDiffusion.applyErrorDiffusionKernel(x, y, quantisationError*1.0, ErrorDiffusionKernel.MINIMIZED_AVERAGE_ERROR)
-			color = quantisedColor // TODO herausfinden, warum getQuantisedColor gefühlt nicht immer die beste wahl trifft
+			errorDiffusion.applyErrorDiffusionKernel(x, y, quantisationError*0.67, ErrorDiffusionKernel.MINIMIZED_AVERAGE_ERROR)
+			color = quantisedColor
+
+			// pixel displacement
+			var x2 = x //+ round(0.5+0.5*sin(y.toDouble()*0.09)*cos(y.toDouble()*0.7)).toInt()
+			var y2 = y // + round(5.0*sin(x.toDouble()*0.09)*cos(x.toDouble()*0.7)).toInt()
 
 			result[x2, y2, targetPixelSize] = color
 
