@@ -1,31 +1,24 @@
 package at.woolph.retrotouch
 
 import javafx.beans.property.SimpleIntegerProperty
+import javafx.beans.property.SimpleObjectProperty
+import javafx.embed.swing.SwingFXUtils
 import javafx.geometry.Pos
 import javafx.scene.image.Image
 import javafx.scene.image.WritableImage
 import javafx.scene.layout.BorderPane
 import javafx.geometry.Rectangle2D
-import tornadofx.App
-import tornadofx.View
-import tornadofx.bind
-import tornadofx.box
-import tornadofx.button
-import tornadofx.center
-import tornadofx.hbox
-import tornadofx.imageview
-import tornadofx.label
-import tornadofx.px
-import tornadofx.slider
-import tornadofx.style
-import tornadofx.vbox
+import javafx.stage.FileChooser
+import tornadofx.*
 import java.awt.image.BufferedImage
+import javax.imageio.ImageIO
+import kotlin.system.exitProcess
 
 class MyApp : App(MyView::class) {
 }
 
 enum class DisplayMode {
-		FULL_HORIZONTAL, FULL_VERTICAL, SPLIT_HORIZONTAL, SPLIT_VERTICAL
+	FULL_HORIZONTAL, FULL_VERTICAL, SPLIT_HORIZONTAL, SPLIT_VERTICAL
 }
 
 // add gui
@@ -36,95 +29,135 @@ class MyView : View() {
 	val brightness = SimpleIntegerProperty()
 	val contrast = SimpleIntegerProperty()
 
-	val originalImage = Image("file:/E:/2016-08-21 14.24.45.jpg")//, 800.0, 800.0, true, true)
+	val originalImage: Image
+	val modifiedImageProperty = SimpleObjectProperty<WritableImage>(null)
+	var modifiedImage by modifiedImageProperty
 
 	val displayType = DisplayMode.FULL_HORIZONTAL
 
 	init {
 		title = "RetroTouch"
 
-		val modifiedImage = originalImage.process()
+		originalImage = chooseFile("Open Image", arrayOf(FileChooser.ExtensionFilter("Image", "*.png", "*.jpg", "*.jpeg"))).singleOrNull()?.let { Image(it.toURI().toString()) } ?: exitProcess(0)
+
+		modifiedImage = originalImage.process()
 
 		//val palette = generateColorPalette(originalImage, 8)
 
 		//openInternalWindow(PaletteEditor::class)
 
 		with(root) {
-				style {
-						padding = box(20.px)
-				}
-
-				center {
-						vbox(10.0) {
-								alignment = Pos.CENTER
-
-								when (displayType) {
-										DisplayMode.FULL_HORIZONTAL -> hbox(0.0) {
-													imageview(originalImage) {
-														setPreserveRatio(true)
-														setFitHeight(800.0)
-														setFitWidth(800.0)
-													}
-													imageview(modifiedImage) {
-														setPreserveRatio(true)
-														setFitHeight(800.0)
-														setFitWidth(800.0)
-													}
-												}
-										DisplayMode.FULL_VERTICAL -> vbox(0.0) {
-													imageview(originalImage)
-													imageview(modifiedImage) {
-														setPreserveRatio(true)
-														setFitHeight(800.0)
-														setFitWidth(800.0)
-													}
-												}
-										DisplayMode.SPLIT_HORIZONTAL -> hbox(0.0) {
-													imageview(originalImage) {
-														viewport = Rectangle2D(0.0, 0.0, originalImage.width*0.5, originalImage.height)
-													}
-													imageview(modifiedImage) {
-														viewport = Rectangle2D(originalImage.width*0.5, 0.0, originalImage.width, originalImage.height)
-													}
-												}
-										DisplayMode.SPLIT_VERTICAL -> vbox(0.0) {
-													imageview(originalImage) {
-														viewport = Rectangle2D(0.0, 0.0, originalImage.width, originalImage.height*0.5)
-													}
-													imageview(modifiedImage) {
-														viewport = Rectangle2D(0.0, originalImage.height*0.5, originalImage.width, originalImage.height)
-													}
-												}
-								}
-								/*hbox(10.0) {
-				slider(-255,255,0){
-					bind(brightness)
-				}
-									label() {
-											bind(brightness)
-											style { fontSize = 25.px }
-									}
+			style {
+				padding = box(20.px)
 			}
-								hbox(10.0) {
-				slider(-255,255,0){
-					bind(contrast)
-				}
-									label() {
-											bind(contrast)
-											style { fontSize = 25.px }
-									}
-			}
-								hbox(10.0) {
-									label() {
-											bind(counter)
-											style { fontSize = 25.px }
-									}
-									button("Click to increment").setOnAction {
-											increment()
-									}
-			}*/
+			top {
+				toolbar {
+					button("Save Result") {
+						action {
+							chooseFile("Save Image", arrayOf(FileChooser.ExtensionFilter("PNG", "*.png")), mode = FileChooserMode.Save).singleOrNull()?.let {
+								ImageIO.write(SwingFXUtils.fromFXImage(modifiedImage, null), "png", it)
+							}
 						}
+					}
+
+					togglebutton("Effect") {
+						selectedProperty().addListener { _, _, newValue ->
+
+							modifiedImage = originalImage.process(newValue)
+						}
+					}
+
 				}
+			}
+
+			center {
+				vbox(10.0) {
+					alignment = Pos.CENTER
+
+					when (displayType) {
+						DisplayMode.FULL_HORIZONTAL -> hbox(0.0) {
+							imageview(originalImage) {
+								fitHeight = 800.0
+								fitWidth = 800.0
+								setPreserveRatio(true)
+							}
+							imageview {
+								imageProperty().bind(modifiedImageProperty)
+								fitHeight = 800.0
+								fitWidth = 800.0
+								setPreserveRatio(true)
+							}
+						}
+						DisplayMode.FULL_VERTICAL -> vbox(0.0) {
+							imageview(originalImage)
+							imageview() {
+								imageProperty().bind(modifiedImageProperty)
+								fitHeight = 800.0
+								fitWidth = 800.0
+								setPreserveRatio(true)
+							}
+						}
+						DisplayMode.SPLIT_HORIZONTAL -> hbox(0.0) {
+							imageview(originalImage) {
+								viewport = Rectangle2D(0.0, 0.0, originalImage.width * 0.5, originalImage.height)
+								fitHeight = 800.0
+								fitWidth = 800.0
+								setPreserveRatio(true)
+							}
+							imageview(modifiedImage) {
+								viewport = Rectangle2D(modifiedImage.width * 0.5, 0.0, modifiedImage.width, modifiedImage.height)
+								fitHeight = 800.0
+								fitWidth = 800.0
+								setPreserveRatio(true)
+							}
+						}
+						DisplayMode.SPLIT_VERTICAL -> vbox(0.0) {
+							imageview(originalImage) {
+								viewport = Rectangle2D(0.0, 0.0, originalImage.width, originalImage.height * 0.5)
+								fitHeight = 800.0
+								fitWidth = 800.0
+								setPreserveRatio(true)
+							}
+							imageview(modifiedImage) {
+								viewport = Rectangle2D(0.0, modifiedImage.height * 0.5, modifiedImage.width, modifiedImage.height)
+								fitHeight = 800.0
+								fitWidth = 800.0
+								setPreserveRatio(true)
+							}
+						}
+					}
+					/*hbox(10.0) {
+	slider(-255,255,0){
+		bind(brightness)
+	}
+						label() {
+								bind(brightness)
+								style { fontSize = 25.px }
+						}
+}
+					hbox(10.0) {
+	slider(-255,255,0){
+		bind(contrast)
+	}
+						label() {
+								bind(contrast)
+								style { fontSize = 25.px }
+						}
+}
+					hbox(10.0) {
+						label() {
+								bind(counter)
+								style { fontSize = 25.px }
+						}
+						button("Click to increment").setOnAction {
+								increment()
+						}
+}*/
+				}
+			}
+			bottom {
+
+			}
 		}
 	}
 }
