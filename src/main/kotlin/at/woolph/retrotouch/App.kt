@@ -1,17 +1,15 @@
 package at.woolph.retrotouch
 
 import javafx.beans.property.SimpleDoubleProperty
-import javafx.beans.property.SimpleIntegerProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.embed.swing.SwingFXUtils
 import javafx.geometry.Pos
-import javafx.geometry.Rectangle2D
 import javafx.scene.image.Image
 import javafx.scene.layout.BorderPane
 import javafx.geometry.Rectangle2D
+import javafx.scene.image.WritableImage
 import javafx.stage.FileChooser
 import tornadofx.*
-import java.awt.image.BufferedImage
 import javax.imageio.ImageIO
 import kotlin.system.exitProcess
 
@@ -40,12 +38,12 @@ class MyView : View() {
 
 		originalImage = chooseFile("Open Image", arrayOf(FileChooser.ExtensionFilter("Image", "*.png", "*.jpg", "*.jpeg"))).singleOrNull()?.let { Image(it.toURI().toString()) } ?: exitProcess(0)
 
-		modifiedImage = originalImage.process(scale = scale.get(), brightness = brightness.get(), contrast = contrast.get()))
+		modifiedImage = originalImage.process(effect = false, scale = scale.get(), brightness = brightness.get(), contrast = contrast.get())
 		val recalc = timeline {
 			keyframe(1.seconds) {
 				setOnFinished {
 					println("recalcing image")
-					modifiedImage = originalImage.process(scale = scale.get(), brightness = brightness.get(), contrast = contrast.get()))
+					modifiedImage = originalImage.process(effect = false, scale = scale.get(), brightness = brightness.get(), contrast = contrast.get())
 				}
 			}
 		}
@@ -81,7 +79,7 @@ class MyView : View() {
 					togglebutton("Effect") {
 						selectedProperty().addListener { _, _, newValue ->
 
-							modifiedImage = originalImage.process(newValue)
+							//modifiedImage = originalImage.process(newValue)
 						}
 					}
 
@@ -156,8 +154,7 @@ class MyView : View() {
 						bind(scale)
 						style { fontSize = 25.px }
 					}
-				}
-				hbox(10.0) {
+
 					label("brightness")
 					slider(-1.0,1.0,0.0) {
 						bind(brightness)
@@ -166,8 +163,7 @@ class MyView : View() {
 						bind(brightness)
 						style { fontSize = 25.px }
 					}
-				}
-				hbox(10.0) {
+
 					label("contrast")
 					slider(-1.0,1.0,0.0) {
 						bind(contrast)

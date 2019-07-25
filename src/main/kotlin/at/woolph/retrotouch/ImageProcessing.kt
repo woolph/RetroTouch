@@ -504,7 +504,7 @@ fun Image.process(effect: Boolean = true, scale: Double = 1.0, brightness: Doubl
 
 			// Floyd-Steinberg-Dithering
 			errorDiffusion.applyErrorDiffusionKernel(x, y, quantisationError*0.67, ErrorDiffusionKernel.MINIMIZED_AVERAGE_ERROR)
-			//color = quantisedColor
+			color = quantisedColor
 
 
 			// pixel displacement
