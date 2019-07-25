@@ -1,5 +1,6 @@
 package at.woolph.retrotouch
 
+import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleDoubleProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.embed.swing.SwingFXUtils
@@ -26,6 +27,7 @@ class MyView : View() {
 	val brightness = SimpleDoubleProperty(0.0)
 	val contrast = SimpleDoubleProperty(0.0)
 	val scale = SimpleDoubleProperty(0.1)
+	val bloomEffect = SimpleBooleanProperty(false)
 
 	val originalImage: Image
 	val modifiedImageProperty = SimpleObjectProperty<WritableImage>(null)
@@ -38,16 +40,19 @@ class MyView : View() {
 
 		originalImage = chooseFile("Open Image", arrayOf(FileChooser.ExtensionFilter("Image", "*.png", "*.jpg", "*.jpeg"))).singleOrNull()?.let { Image(it.toURI().toString()) } ?: exitProcess(0)
 
-		modifiedImage = originalImage.process(effect = false, scale = scale.get(), brightness = brightness.get(), contrast = contrast.get())
+		modifiedImage = originalImage.process(effect = bloomEffect.get(), scale = scale.get(), brightness = brightness.get(), contrast = contrast.get())
 		val recalc = timeline {
 			keyframe(1.seconds) {
 				setOnFinished {
 					println("recalcing image")
-					modifiedImage = originalImage.process(effect = false, scale = scale.get(), brightness = brightness.get(), contrast = contrast.get())
+					modifiedImage = originalImage.process(effect = bloomEffect.get(), scale = scale.get(), brightness = brightness.get(), contrast = contrast.get())
 				}
 			}
 		}
 
+		bloomEffect.addListener { _, _, _ ->
+			recalc.playFromStart()
+		}
 		scale.addListener { _, _, _ ->
 			recalc.playFromStart()
 		}
@@ -77,10 +82,8 @@ class MyView : View() {
 					}
 
 					togglebutton("Effect") {
-						selectedProperty().addListener { _, _, newValue ->
-
-							//modifiedImage = originalImage.process(newValue)
-						}
+						isSelected = false
+						bloomEffect.bind(selectedProperty())
 					}
 
 				}

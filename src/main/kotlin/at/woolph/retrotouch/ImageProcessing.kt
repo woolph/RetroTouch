@@ -443,8 +443,8 @@ fun Image.process(effect: Boolean = true, scale: Double = 1.0, brightness: Doubl
 	// bloom
 	val bloomRangeX = -5 .. 5
 	val bloomRangeY = -5 .. 5
-	val bloomThreshold = 0.5
-	val calcBloomWeight: (Int, Int)->Double = { dx, dy -> 1.0/(max(1, dx*dx+dy*dy).toDouble()) }
+	val bloomThreshold = 0.7
+	val calcBloomWeight: (Int, Int)->Double = { dx, dy -> if(dx != 0 || dy != 0) 1.0/(dx*dx+dy*dy).toDouble() else 0.0 }
 	val bloomThresholdFactor = 1/(1-bloomThreshold) // precalculated constant
 
 	for(x in result.rangeX) {
@@ -461,21 +461,21 @@ fun Image.process(effect: Boolean = true, scale: Double = 1.0, brightness: Doubl
 			color = color.adjustBrightness(brightness)
 
 			// bloom
-			if(effect) {
+			/*if(effect) {
 				var bloomSum = MyColor()
 				var bloomWeightSum = 0.0
 				for(dx in bloomRangeX) {
 					for(dy in bloomRangeY) {
-						this[x+dx, y+dy]?.let {
+						this[x + dx, y + dy, sourceWindowSize]?.let {
 							val bloomWeight = calcBloomWeight(dx, dy)
-							val bloom = bloomWeight * ((it.getHSB().third - bloomThreshold)*bloomThresholdFactor).clipToUni()
-							bloomSum += it*bloom
+							val bloom = bloomWeight * ((it.getHSB().third - bloomThreshold) * bloomThresholdFactor).clipToUni()
+							bloomSum += it * bloom
 							bloomWeightSum += bloomWeight
 						}
 					}
 				}
 				color += bloomSum/bloomWeightSum
-			}
+			}*/
 
 			// vignettierung
 			//color = color - vignettingFilter[x, y]
@@ -529,5 +529,36 @@ fun Image.process(effect: Boolean = true, scale: Double = 1.0, brightness: Doubl
 		}
 	}
 
-	return result
+
+
+	val result2 = WritableImage(result.sizeX, result.sizeY)
+
+	for(x in result.rangeX) {
+		for(y in result.rangeY) {
+			var color2 = result[x, y]!!
+
+			// bloom
+			if(effect) {
+				var bloomSum = MyColor()
+				var bloomWeightSum = 0.0
+				for(dx in bloomRangeX) {
+					for(dy in bloomRangeY) {
+						result[x + dx, y + dy]?.let {
+							val bloomWeight = calcBloomWeight(dx, dy)
+							val bloom = bloomWeight * ((it.getHSB().third - bloomThreshold) * bloomThresholdFactor).clipToUni()
+							if(bloom > 0.0) {
+								bloomSum += it * bloom
+								bloomWeightSum += bloomWeight
+							}
+						}
+					}
+				}
+				color2 += bloomSum/bloomWeightSum
+
+				result2[x, y] = color2
+			}
+		}
+	}
+
+	return result2
 }
