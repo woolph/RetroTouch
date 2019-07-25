@@ -1,11 +1,12 @@
 package at.woolph.retrotouch
 
+import javafx.beans.property.SimpleDoubleProperty
 import javafx.beans.property.SimpleIntegerProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.embed.swing.SwingFXUtils
 import javafx.geometry.Pos
+import javafx.geometry.Rectangle2D
 import javafx.scene.image.Image
-import javafx.scene.image.WritableImage
 import javafx.scene.layout.BorderPane
 import javafx.geometry.Rectangle2D
 import javafx.stage.FileChooser
@@ -14,8 +15,7 @@ import java.awt.image.BufferedImage
 import javax.imageio.ImageIO
 import kotlin.system.exitProcess
 
-class MyApp : App(MyView::class) {
-}
+class MyApp : App(MyView::class)
 
 enum class DisplayMode {
 	FULL_HORIZONTAL, FULL_VERTICAL, SPLIT_HORIZONTAL, SPLIT_VERTICAL
@@ -25,9 +25,9 @@ enum class DisplayMode {
 // TODO implement palette editor
 class MyView : View() {
 	override val root = BorderPane()
-	val counter = SimpleIntegerProperty()
-	val brightness = SimpleIntegerProperty()
-	val contrast = SimpleIntegerProperty()
+	val brightness = SimpleDoubleProperty(0.0)
+	val contrast = SimpleDoubleProperty(0.0)
+	val scale = SimpleDoubleProperty(0.1)
 
 	val originalImage: Image
 	val modifiedImageProperty = SimpleObjectProperty<WritableImage>(null)
@@ -40,8 +40,25 @@ class MyView : View() {
 
 		originalImage = chooseFile("Open Image", arrayOf(FileChooser.ExtensionFilter("Image", "*.png", "*.jpg", "*.jpeg"))).singleOrNull()?.let { Image(it.toURI().toString()) } ?: exitProcess(0)
 
-		modifiedImage = originalImage.process()
+		modifiedImage = originalImage.process(scale = scale.get(), brightness = brightness.get(), contrast = contrast.get()))
+		val recalc = timeline {
+			keyframe(1.seconds) {
+				setOnFinished {
+					println("recalcing image")
+					modifiedImage = originalImage.process(scale = scale.get(), brightness = brightness.get(), contrast = contrast.get()))
+				}
+			}
+		}
 
+		scale.addListener { _, _, _ ->
+			recalc.playFromStart()
+		}
+		brightness.addListener { _, _, _ ->
+			recalc.playFromStart()
+		}
+		contrast.addListener { _, _, _ ->
+			recalc.playFromStart()
+		}
 		//val palette = generateColorPalette(originalImage, 8)
 
 		//openInternalWindow(PaletteEditor::class)
@@ -50,6 +67,7 @@ class MyView : View() {
 			style {
 				padding = box(20.px)
 			}
+
 			top {
 				toolbar {
 					button("Save Result") {
@@ -126,37 +144,39 @@ class MyView : View() {
 							}
 						}
 					}
-					/*hbox(10.0) {
-	slider(-255,255,0){
-		bind(brightness)
-	}
-						label() {
-								bind(brightness)
-								style { fontSize = 25.px }
-						}
-}
-					hbox(10.0) {
-	slider(-255,255,0){
-		bind(contrast)
-	}
-						label() {
-								bind(contrast)
-								style { fontSize = 25.px }
-						}
-}
-					hbox(10.0) {
-						label() {
-								bind(counter)
-								style { fontSize = 25.px }
-						}
-						button("Click to increment").setOnAction {
-								increment()
-						}
-}*/
 				}
 			}
 			bottom {
-
+				hbox(10.0) {
+					label("scale")
+					slider(0.0,1.0,0.1){
+						bind(scale)
+					}
+					label {
+						bind(scale)
+						style { fontSize = 25.px }
+					}
+				}
+				hbox(10.0) {
+					label("brightness")
+					slider(-1.0,1.0,0.0) {
+						bind(brightness)
+					}
+					label {
+						bind(brightness)
+						style { fontSize = 25.px }
+					}
+				}
+				hbox(10.0) {
+					label("contrast")
+					slider(-1.0,1.0,0.0) {
+						bind(contrast)
+					}
+					label {
+						bind(contrast)
+						style { fontSize = 25.px }
+					}
+				}
 			}
 		}
 	}

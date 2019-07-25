@@ -414,12 +414,12 @@ fun WritableImage.bloom(threshold: Double, weight: (Int, Int)->Double) {
 
 }
 
-fun Image.process(effect: Boolean = true) : WritableImage {
+fun Image.process(effect: Boolean = true, scale: Double = 1.0, brightness: Double = 0.0, contrast: Double = 0.0) : WritableImage {
 	val pixelRatioX = 1
 	val pixelRatioY = 1
 	var targetPixelSize = calcPixelSize(pixelRatioX, pixelRatioY)
 
-	val (scaleX, scaleY) = getScaleFactors(1.0, targetPixelSize)
+	val (scaleX, scaleY) = getScaleFactors(scale, targetPixelSize)
 	val targetWidth = floor(this.width*scaleX) // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
 	val targetHeight = floor(this.height*scaleY) // TODO choosable scaling down with factor or fixed resolution (take pixel size into consideration to remain aspect ratio)
 
@@ -435,8 +435,6 @@ fun Image.process(effect: Boolean = true) : WritableImage {
 
 	val errorDiffusion = ErrorDiffusionMap(result.sizeX, result.sizeY)
 	val center = result.size.toDoublePoint()/2.0
-
-	val brightness = 0.2
 
 	//val vignettingFilter = VignettingFilter(center, center.lengthSquared*0.5, 0.1, 0.5)
 	val vignettingFilter = VignettingFilterEllipse(center, result.size.toDoublePoint()*2.0, -5.0, 0.2)
@@ -460,7 +458,7 @@ fun Image.process(effect: Boolean = true) : WritableImage {
 			//color = color.invert()
 
 			// brightness
-			//color = color.adjustBrightness(-0.1)
+			color = color.adjustBrightness(brightness)
 
 			// bloom
 			if(effect) {
@@ -483,7 +481,7 @@ fun Image.process(effect: Boolean = true) : WritableImage {
 			//color = color - vignettingFilter[x, y]
 
 			// contrast
-			//color = color.adjustContrast(0.2)
+			//color = color.adjustContrast(contrast)
 
 			// saturation
 			//color = color.adjustSaturation(1.0)
